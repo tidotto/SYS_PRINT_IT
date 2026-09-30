@@ -1,0 +1,24 @@
+{
+  "name": "sysprint-ti",
+  "version": "1.0.0",
+  "description": "SysPrint TI — Sistema de Monitoramento de Parque de Impressão e Auditoria PaperCut",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "scan": "node -e \"require('./scanner').performScan()\"",
+    "sync": "node -e \"require('./papercutEngine').syncRecentLogs(10)\""
+  },
+  "keywords": [
+    "printer",
+    "snmp",
+    "papercut",
+    "audit",
+    "sysprint"
+  ],
+  "author": "TI",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "net-snmp": "^3.29.1"
+  }
+}

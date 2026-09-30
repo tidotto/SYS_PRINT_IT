@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dashboard corporativo para monitoramento em tempo real de suprimentos, toners e auditoria mensal de impressões com detecção de anomalias.">
+  <title>SysPrint TI — Gestão & Auditoria de Impressões</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header Principal -->
+  <header class="top-nav" role="banner">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">SysPrint TI</h1>
+          <p class="brand-subtitle">Gestão de Parque & Auditoria de Fechamento</p>
+        </div>
+      </div>
+
+      <!-- Abas Principais de Navegação -->
+      <nav class="main-tabs" role="tablist">
+        <button class="nav-tab active" id="tabHardware" role="tab" aria-selected="true" aria-controls="viewHardware">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          <span>Parque & Toners</span>
+          <span class="tab-badge" id="badgeHardwareCount">53</span>
+        </button>
+
+        <button class="nav-tab" id="tabAudit" role="tab" aria-selected="false" aria-controls="viewAudit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span>Auditoria & Fechamento</span>
+          <span class="tab-badge tab-badge-alert" id="badgeAnomalyCount">--</span>
+        </button>
+      </nav>
+
+      <div class="server-badge" title="Servidores Windows monitorados">
+        <span class="live-dot" id="serverLiveDot"></span>
+        <span class="server-text">Servidor: <strong id="headerServerInfo">Carregando...</strong></span>
+        <span class="sync-time" id="lastUpdatedText">Sincronizado</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       VIEW 1: PARQUE DE IMPRESSORAS & NÍVEIS DE TONER (HARDWARE)
+       ========================================================================= -->
+  <main class="main-wrapper" id="viewHardware">
+    <div class="view-header-row">
+      <div>
+        <h2 class="view-title">Parque de Impressoras</h2>
+        <p class="view-subtitle">Telemetria em tempo real via SNMP (UDP 161) e status do Spooler Windows</p>
+      </div>
+      <div class="header-actions">
+        <button id="btnRescan" class="btn btn-primary" title="Efetuar varredura em tempo real via SNMP">
+          <svg class="spin-icon" id="scanSpinIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+          </svg>
+          <span id="scanBtnText">Atualizar Hardware</span>
+        </button>
+        <button id="btnExportCsv" class="btn btn-secondary" title="Exportar dados de hardware para CSV">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Exportar Parque</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Alertas Críticos de Toner -->
+    <section class="critical-banner" id="criticalBanner" style="display: none;" aria-live="polite">
+      <div class="banner-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <div class="banner-body">
+        <strong id="bannerTitle">Atenção: Suprimentos em Nível Crítico</strong>
+        <p id="bannerDesc">Existem impressoras com menos de 15% de toner necessitando de reposição preventiva.</p>
+      </div>
+      <button class="btn btn-warning-outline" id="btnFilterCritical">Filtrar Apenas Alertas</button>
+    </section>
+
+    <!-- Cards de Métricas Principais (KPIs) -->
+    <section class="kpi-grid" aria-label="Métricas Principais">
+      <div class="kpi-card" data-filter="all">
+        <div class="kpi-header">
+          <span class="kpi-label">Total de Impressoras</span>
+          <span class="kpi-icon icon-blue">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          </span>
+        </div>
+        <div class="kpi-value" id="kpiTotal">--</div>
+        <div class="kpi-sub">Mapeadas no Servidor</div>
+      </div>
+
+      <div class="kpi-card" data-filter="ready">
+        <div class="kpi-header">
+          <span class="kpi-label">Operacionais & Prontas</span>
+          <span class="kpi-icon icon-green">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          </span>
+        </div>
+        <div class="kpi-value value-green" id="kpiOnline">--</div>
+        <div class="kpi-sub">Comunicação SNMP Ativa</div>
+      </div>
+
+      <div class="kpi-card" data-filter="low_toner">
+        <div class="kpi-header">
+          <span class="kpi-label">Toners em Alerta (&le; 20%)</span>
+          <span class="kpi-icon icon-amber">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          </span>
+        </div>
+        <div class="kpi-value value-amber" id="kpiLowToner">--</div>
+        <div class="kpi-sub" id="kpiCriticalSub">Requer reposição</div>
+      </div>
+
+      <div class="kpi-card" data-filter="offline">
+        <div class="kpi-header">
+          <span class="kpi-label">Offline ou Com Falha</span>
+          <span class="kpi-icon icon-red">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+          </span>
+        </div>
+        <div class="kpi-value value-red" id="kpiOffline">--</div>
+        <div class="kpi-sub">Sem resposta na rede</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Volume Geral Vitalício</span>
+          <span class="kpi-icon icon-purple">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          </span>
+        </div>
+        <div class="kpi-value value-purple" id="kpiTotalPages">--</div>
+        <div class="kpi-sub">Total de páginas (Life count)</div>
+      </div>
+    </section>
+
+    <!-- Barra de Filtros e Controles -->
+    <section class="controls-card" aria-label="Filtros e Busca">
+      <div class="search-box">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Buscar por nome da fila, IP, modelo ou serial..." autocomplete="off">
+        <button id="btnClearSearch" class="btn-clear" style="display: none;" title="Limpar busca">&times;</button>
+      </div>
+
+      <div class="filters-row">
+        <div class="select-group">
+          <label for="selectUnit">Unidade / Setor</label>
+          <select id="selectUnit">
+            <option value="all">Todas as Unidades</option>
+            <option value="RH Central">RH Central</option>
+            <option value="DF 47">DF 47 (Prédio Central)</option>
+            <option value="Canoas">Canoas</option>
+            <option value="Gravataí">Gravataí</option>
+            <option value="Cachoeirinha">Cachoeirinha</option>
+            <option value="Azenha">Azenha</option>
+            <option value="Assis Brasil">Assis Brasil</option>
+            <option value="Alvorada">Alvorada</option>
+            <option value="Administração">Administração</option>
+            <option value="Outros">Outras</option>
+          </select>
+        </div>
+
+        <div class="select-group">
+          <label for="selectStatus">Status Operacional</label>
+          <select id="selectStatus">
+            <option value="all">Todos os Status</option>
+            <option value="ready">Pronta / Normal</option>
+            <option value="low_toner">Alerta de Toner (&le; 20%)</option>
+            <option value="critical">Toner Crítico (&le; 10%)</option>
+            <option value="offline">Offline / Erro</option>
+          </select>
+        </div>
+
+        <div class="select-group">
+          <label for="selectType">Tipo de Impressão</label>
+          <select id="selectType">
+            <option value="all">Todas</option>
+            <option value="mono">Monocromática (P&B)</option>
+            <option value="color">Colorida (CMYK)</option>
+          </select>
+        </div>
+
+        <div class="select-group">
+          <label for="selectSort">Ordenar Por</label>
+          <select id="selectSort">
+            <option value="name_asc">Nome (A - Z)</option>
+            <option value="toner_asc">Menor Nível de Toner</option>
+            <option value="toner_desc">Maior Nível de Toner</option>
+            <option value="pages_desc">Mais Páginas Impressas</option>
+            <option value="ip_asc">Endereço IP</option>
+          </select>
+        </div>
+
+        <div class="view-toggle" role="group" aria-label="Visualização">
+          <button class="btn-toggle active" id="btnViewCards" title="Visualização em Cartões">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          </button>
+          <button class="btn-toggle" id="btnViewTable" title="Visualização em Tabela">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contador de Resultados Visíveis -->
+    <div class="results-header">
+      <span id="resultsCount">Carregando impressoras...</span>
+      <span class="legend">
+        <span class="legend-item"><span class="legend-color legend-k"></span> K: Preto</span>
+        <span class="legend-item"><span class="legend-color legend-c"></span> C: Ciano</span>
+        <span class="legend-item"><span class="legend-color legend-m"></span> M: Magenta</span>
+        <span class="legend-item"><span class="legend-color legend-y"></span> Y: Amarelo</span>
+      </span>
+    </div>
+
+    <!-- Grade de Cards das Impressoras -->
+    <section class="printers-grid" id="printersGrid" aria-label="Lista de Impressoras"></section>
+
+    <!-- Visualização em Tabela -->
+    <section class="table-container" id="tableContainer" style="display: none;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Nome da Impressora</th>
+            <th>Unidade</th>
+            <th>Endereço IP</th>
+            <th>Níveis de Toner</th>
+            <th>Total Páginas</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="printersTableBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- =========================================================================
+       VIEW 2: AUDITORIA DE FECHAMENTO TI (PAPERCUT & DETECÇÃO DE ANOMALIAS)
+       ========================================================================= -->
+  <main class="main-wrapper" id="viewAudit" style="display: none;">
+    <div class="view-header-row">
+      <div>
+        <h2 class="view-title">Auditoria Mensal de Fechamento</h2>
+        <p class="view-subtitle">Conferência inteligente do ciclo (dia 21 a 20) com tabela responsiva DataTable</p>
+      </div>
+
+      <div class="header-actions">
+        <button id="btnSyncPapercut" class="btn btn-primary" title="Sincronizar novos logs do PaperCut da rede">
+          <svg class="spin-icon" id="syncPapercutSpinIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+          </svg>
+          <span id="syncPapercutBtnText">Sincronizar Logs</span>
+        </button>
+
+        <button id="btnExportAuditCsv" class="btn btn-secondary" title="Exportar relatório formatado do ciclo selecionado">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Exportar Fechamento (CSV)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Barra Seletora de Ciclo (21 a 20) -->
+    <section class="cycle-bar-card" aria-label="Seleção de Ciclo de Fechamento">
+      <div class="cycle-presets">
+        <span class="cycle-title">Período de Fechamento:</span>
+        <div class="cycle-btn-group" role="group">
+          <button class="btn-cycle active" id="btnCycleCurrent">
+            <span>Ciclo Vigente</span>
+            <small id="labelCycleCurrent">21/09 a 20/10</small>
+          </button>
+          <button class="btn-cycle" id="btnCyclePrevious">
+            <span>Ciclo Anterior</span>
+            <small id="labelCyclePrevious">21/08 a 20/09</small>
+          </button>
+          <button class="btn-cycle" id="btnCycleCustom">
+            <span>Personalizado</span>
+            <small>Outras Datas</small>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros de Data Customizados -->
+      <div class="custom-dates" id="customDatesContainer" style="display: none;">
+        <div class="date-input-group">
+          <label for="auditStartDate">Início:</label>
+          <input type="date" id="auditStartDate">
+        </div>
+        <div class="date-input-group">
+          <label for="auditEndDate">Fim:</label>
+          <input type="date" id="auditEndDate">
+        </div>
+        <button class="btn btn-sm btn-primary" id="btnApplyCustomDates">Aplicar</button>
+      </div>
+    </section>
+
+    <!-- Banner de Alertas de Anomalia Detectados no Ciclo -->
+    <section class="audit-anomaly-banner" id="auditAnomalyBanner" style="display: none;">
+      <div class="anomaly-banner-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <div class="anomaly-banner-text">
+        <strong id="anomalyBannerCount">-- impressões anômalas identificadas neste ciclo</strong>
+        <p>Trabalhos com volume atípico (&ge; 35 págs), fora do expediente ou com nomes suspeitos.</p>
+      </div>
+      <button class="btn btn-danger-outline" id="btnFilterAuditAnomalies">Ver Apenas Anomalias</button>
+    </section>
+
+    <!-- KPIs do Período de Auditoria -->
+    <section class="kpi-grid" aria-label="Métricas do Ciclo">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Volume Total do Ciclo</span>
+          <span class="kpi-icon icon-blue">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          </span>
+        </div>
+        <div class="kpi-value" id="kpiAuditPages">--</div>
+        <div class="kpi-sub" id="kpiAuditPagesSub">Total de páginas impressas</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Trabalhos Enviados</span>
+          <span class="kpi-icon icon-green">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+          </span>
+        </div>
+        <div class="kpi-value value-green" id="kpiAuditJobs">--</div>
+        <div class="kpi-sub" id="kpiAuditUsersCount">Usuários ativos</div>
+      </div>
+
+      <div class="kpi-card kpi-card-clickable" id="cardAnomaliesKpi" role="button" tabindex="0" title="Clique para filtrar apenas anomalias por ordem de criticidade">
+        <div class="kpi-header">
+          <span class="kpi-label">Anomalias & Suspeitas</span>
+          <span class="kpi-icon icon-red">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+          </span>
+        </div>
+        <div class="kpi-value value-red" id="kpiAuditAnomalies">--</div>
+        <div class="kpi-sub">
+          <span>Requerem verificação da TI</span>
+          <span class="kpi-action-hint">Clique para filtrar por criticidade &darr;</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Cor vs Monocromático</span>
+          <span class="kpi-icon icon-amber">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path></svg>
+          </span>
+        </div>
+        <div class="kpi-value value-amber" id="kpiAuditColorRatio">--</div>
+        <div class="kpi-sub" id="kpiAuditColorSub">Páginas Coloridas</div>
+      </div>
+
+
+    </section>
+
+    <!-- Barra de Filtros da Auditoria -->
+    <section class="controls-card" aria-label="Filtros da Tabela de Auditoria">
+      <div class="search-box">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="auditSearchInput" placeholder="Buscar em tempo real por usuário, documento, impressora ou terminal..." autocomplete="off">
+        <button id="btnClearAuditSearch" class="btn-clear" style="display: none;" title="Limpar busca">&times;</button>
+      </div>
+
+      <div class="filters-row">
+        <div class="select-group">
+          <label for="selectAuditAnomaly">Filtro de Registros</label>
+          <select id="selectAuditAnomaly">
+            <option value="all">Todas as Impressões</option>
+            <option value="only_anomalies">Apenas Anomalias / Suspeitas</option>
+          </select>
+        </div>
+
+        <div class="select-group">
+          <label for="selectAuditUser">Usuário</label>
+          <select id="selectAuditUser">
+            <option value="all">Todos os Usuários</option>
+          </select>
+        </div>
+
+        <div class="select-group">
+          <label for="selectAuditPrinter">Impressora</label>
+          <select id="selectAuditPrinter">
+            <option value="all">Todas as Impressoras</option>
+          </select>
+        </div>
+
+        <div class="select-group">
+          <label for="selectAuditClient">Terminal</label>
+          <select id="selectAuditClient">
+            <option value="all">Todos os Terminais</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Barra de Controle do DataTable (Registros por página e paginação) -->
+    <div class="datatable-toolbar">
+      <div class="datatable-length">
+        <label for="selectAuditPageSize">Exibir</label>
+        <select id="selectAuditPageSize">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="250">250</option>
+        </select>
+        <span>registros por página</span>
+      </div>
+
+      <div class="datatable-info" id="auditResultsCount">Carregando registros...</div>
+
+      <div class="pagination-controls">
+        <button class="btn btn-sm btn-outline" id="btnAuditFirstPage" title="Primeira página">&laquo;</button>
+        <button class="btn btn-sm btn-outline" id="btnAuditPrevPage">&larr; Anterior</button>
+        <span class="pagination-info" id="auditPaginationInfo">Página 1</span>
+        <button class="btn btn-sm btn-outline" id="btnAuditNextPage">Próxima &rarr;</button>
+        <button class="btn btn-sm btn-outline" id="btnAuditLastPage" title="Última página">&raquo;</button>
+      </div>
+    </div>
+
+    <!-- Tabela Oficial de Auditoria DataTable com Header Fixo (Sticky) & Responsiva sem Scroll Horizontal -->
+    <section class="table-container datatable-container" id="auditTableContainer">
+      <table class="data-table datatable-table" id="auditDataTable">
+        <colgroup>
+          <col class="col-w-time">
+          <col class="col-w-user">
+          <col class="col-w-pages">
+          <col class="col-w-copies">
+          <col class="col-w-total">
+          <col class="col-w-printer">
+          <col class="col-w-client">
+          <col class="col-w-doc">
+          <col class="col-w-format">
+        </colgroup>
+        <thead>
+          <tr>
+            <th data-sort="time" class="sortable active-sort desc" title="Clique para ordenar">
+              Horário <span class="sort-icon" id="sortIcon_time">▼</span>
+            </th>
+            <th data-sort="user" class="sortable" title="Clique para ordenar">
+              Usuário <span class="sort-icon" id="sortIcon_user">⇅</span>
+            </th>
+            <th data-sort="pages" class="sortable text-center" title="Clique para ordenar">
+              Págs <span class="sort-icon" id="sortIcon_pages">⇅</span>
+            </th>
+            <th data-sort="copies" class="sortable text-center" title="Clique para ordenar">
+              Cópias <span class="sort-icon" id="sortIcon_copies">⇅</span>
+            </th>
+            <th data-sort="total_pages" class="sortable text-center" title="Clique para ordenar">
+              Total <span class="sort-icon" id="sortIcon_total_pages">⇅</span>
+            </th>
+            <th data-sort="printer" class="sortable" title="Clique para ordenar">
+              Impressora <span class="sort-icon" id="sortIcon_printer">⇅</span>
+            </th>
+            <th data-sort="client" class="sortable" title="Clique para ordenar">
+              Terminal <span class="sort-icon" id="sortIcon_client">⇅</span>
+            </th>
+            <th data-sort="document_name" class="sortable" title="Clique para ordenar">
+              Documento <span class="sort-icon" id="sortIcon_document_name">⇅</span>
+            </th>
+            <th class="text-center">Formato</th>
+          </tr>
+        </thead>
+        <tbody id="auditTableBody">
+          <!-- Injetado dinamicamente via JS -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- Modal de Detalhes da Impressora (Hardware) -->
+  <div class="modal-backdrop" id="printerModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modalPrinterName">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <div class="badge-row">
+            <span class="badge" id="modalUnitBadge">Unidade</span>
+            <span class="badge badge-type" id="modalTypeBadge">Mono</span>
+          </div>
+          <h2 class="modal-title" id="modalPrinterName">Nome da Impressora</h2>
+          <p class="modal-driver" id="modalDriverName">Modelo do Driver</p>
+        </div>
+        <button class="modal-close" id="btnModalClose" aria-label="Fechar Modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-title">Endereço IP</span>
+            <span class="meta-value mono" id="modalIp">192.168.x.x</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-title">Porta / Mapeamento</span>
+            <span class="meta-value mono" id="modalPort">PortName</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-title">Número de Série</span>
+            <span class="meta-value mono" id="modalSerial">N/A</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-title">Volume Total Vitalício</span>
+            <span class="meta-value highlight" id="modalLifeCount">0 págs</span>
+          </div>
+          <div class="meta-item full-width">
+            <span class="meta-title">Caminho de Rede Windows (Spooler)</span>
+            <div class="copy-box">
+              <span class="meta-value mono" id="modalServerPath">—</span>
+              <button class="btn btn-sm btn-outline" id="btnCopyServerPath">Copiar</button>
+            </div>
+          </div>
+          <div class="meta-item full-width">
+            <span class="meta-title">Identificação de Firmware (sysDescr)</span>
+            <span class="meta-value text-small" id="modalSysDescr">-</span>
+          </div>
+        </div>
+
+        <h3 class="section-title">Consumíveis e Peças de Reposição (Telemetria SNMP)</h3>
+        <div class="supplies-list" id="modalSuppliesList"></div>
+      </div>
+
+      <div class="modal-footer">
+        <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" id="btnOpenWebGui">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+          Abrir Web Console da Impressora
+        </a>
+        <button class="btn btn-secondary" id="btnModalClose2">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast de Notificações -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
