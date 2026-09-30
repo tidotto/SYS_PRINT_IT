@@ -4,7 +4,7 @@ Sistema corporativo para monitoramento em tempo real do parque de impressoras ma
 
 ---
 
-## 🚀 Como Iniciar
+## Como Iniciar
 
 1. **Configurar Variáveis de Ambiente:**
    Copie o arquivo `.env.example` para `.env` e ajuste os parâmetros da sua infraestrutura:
@@ -33,7 +33,7 @@ Sistema corporativo para monitoramento em tempo real do parque de impressoras ma
 
 ---
 
-## ⚙️ Variáveis de Ambiente (.env)
+## Variáveis de Ambiente (.env)
 
 Todas as configurações operacionais, de rede e credenciais são isoladas no `.env`:
 
@@ -56,7 +56,7 @@ Todas as configurações operacionais, de rede e credenciais são isoladas no `.
 
 ---
 
-## 📊 Arquitetura do Sistema
+## Arquitetura do Sistema
 
 - **Ingestão Incremental CDC:** O motor PaperCut monitora os arquivos diários sem reprocessar dias fechados inalterados, preservando a rede corporativa.
 - **SQLite com WAL Mode:** Leituras no painel não bloqueiam e nem sofrem contenção durante a inserção de registros em segundo plano.
