@@ -355,13 +355,30 @@ function renderCards(list) {
     const cyclePagesNum = p.cyclePages !== undefined && p.cyclePages !== null ? p.cyclePages : 0;
     const lifePagesText = p.lifeCount !== null ? `${formatNumber(p.lifeCount)} págs` : 'N/A';
     const cycleLabelText = currentHardwareCycle ? currentHardwareCycle.label : 'Ciclo Vigente (21 a 20)';
-    const pagesTooltip = `Volume no ciclo de auditoria (${cycleLabelText}): ${formatNumber(cyclePagesNum)} págs&#10;Total vitalício (SNMP): ${lifePagesText}`;
+    const pagesTooltip = `• Volume no ciclo (${cycleLabelText}): ${formatNumber(cyclePagesNum)} págs\n• Total vitalício (SNMP): ${lifePagesText}`;
 
-    const pagesDisplay = `
-      <span class="page-counter" title="${escapeHtml(pagesTooltip)}">
-        ${formatNumber(cyclePagesNum)} págs <span class="counter-period">ciclo</span>
-      </span>
-    `;
+    const hasLifeCount = p.lifeCount !== null;
+    const pagesDisplay = hasLifeCount 
+      ? `
+        <div class="page-counter-rotator" title="${escapeHtml(pagesTooltip)}">
+          <span class="counter-item counter-item-cycle">
+            <span>${formatNumber(cyclePagesNum)} págs</span>
+            <span class="counter-period">ciclo</span>
+          </span>
+          <span class="counter-item counter-item-total">
+            <span>${formatNumber(p.lifeCount)} págs</span>
+            <span class="counter-period period-total">vitalício</span>
+          </span>
+        </div>
+      `
+      : `
+        <div class="page-counter-rotator static" title="${escapeHtml(pagesTooltip)}">
+          <span class="counter-item static">
+            <span>${formatNumber(cyclePagesNum)} págs</span>
+            <span class="counter-period">ciclo</span>
+          </span>
+        </div>
+      `;
 
     return `
       <article class="printer-card ${cardBorderClass}">
