@@ -29,7 +29,31 @@ Sistema corporativo para monitoramento em tempo real do parque de impressoras ma
 
 4. **Acessar o Painel no Navegador:**
    - **Local:** [http://localhost:3000](http://localhost:3000)
-   - **Rede Corporativa:** `http://<IP_DO_SERVIDOR>:3000`
+   - **Rede Corporativa (Produção):** [http://192.168.1.248:3000](http://192.168.1.248:3000)
+
+---
+
+## Produção no Windows Server (Serviço Windows via NSSM)
+
+Em ambiente de produção no servidor **`192.168.1.248`**, a aplicação é executada em `C:\inetpub\wwwroot\SysPrintTI` gerenciada como serviço nativo do Windows (**`SysPrintTI`**) via NSSM.
+
+### Monitorar Logs em Tempo Real (PowerShell):
+```powershell
+Get-Content "C:\inetpub\wwwroot\SysPrintTI\data\service.log" -Wait -Tail 25
+```
+
+### Comandos de Manutenção do Serviço:
+```powershell
+# Verificar status
+Get-Service SysPrintTI
+
+# Reiniciar o serviço
+nssm restart SysPrintTI
+
+# Parar / Iniciar
+net stop SysPrintTI
+net start SysPrintTI
+```
 
 ---
 
