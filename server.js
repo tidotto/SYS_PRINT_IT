@@ -9,7 +9,8 @@ const {
   calculateCycleBounds, 
   getHistoryStats, 
   getHistoryJobs, 
-  getHistoryFilterOptions 
+  getHistoryFilterOptions,
+  getCyclePagesByPrinter
 } = require('./papercutEngine');
 
 const PORT = config.port;
@@ -71,7 +72,7 @@ const MIME_TYPES = {
 // Cálculo de KPIs do parque de hardware
 function computeStats(data) {
   if (!data || !data.printers) {
-    return { total: 0, online: 0, offline: 0, lowToner: 0, criticalToner: 0, totalPages: 0, colorCount: 0, monoCount: 0 };
+    return { total: 0, online: 0, offline: 0, lowToner: 0, criticalToner: 0, totalPages: 0, cycleTotalPages: 0, cycleInfo: null, colorCount: 0, monoCount: 0 };
   }
   const printers = data.printers;
   const online = printers.filter(p => p.isOnline).length;
@@ -89,6 +90,17 @@ function computeStats(data) {
     units[u] = (units[u] || 0) + 1;
   }
 
+  let cycleTotalPages = 0;
+  let cycleInfo = null;
+  try {
+    const bounds = calculateCycleBounds(new Date());
+    cycleInfo = bounds.current;
+    const { pagesMap } = getCyclePagesByPrinter(bounds.current.startDate, bounds.current.endDate);
+    cycleTotalPages = Object.values(pagesMap).reduce((sum, v) => sum + v, 0);
+  } catch (err) {
+    console.error('[Server] Erro ao computar páginas do ciclo para stats:', err.message);
+  }
+
   return {
     total: printers.length,
     online,
@@ -96,6 +108,8 @@ function computeStats(data) {
     lowToner: lowToner + criticalToner,
     criticalToner,
     totalPages,
+    cycleTotalPages,
+    cycleInfo,
     colorCount,
     monoCount,
     units,
@@ -121,10 +135,30 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // API: GET /api/printers (Parque de hardware)
+  // API: GET /api/printers (Parque de hardware enriquecido com ciclo de auditoria)
   if (pathname === '/api/printers' && req.method === 'GET') {
     const data = getCachedData() || { printers: [] };
     let list = data.printers || [];
+
+    const bounds = calculateCycleBounds(new Date());
+    const startDate = urlObj.searchParams.get('start') || bounds.current.startDate;
+    const endDate = urlObj.searchParams.get('end') || bounds.current.endDate;
+
+    let pagesMap = {};
+    try {
+      const cycleData = getCyclePagesByPrinter(startDate, endDate);
+      pagesMap = cycleData.pagesMap;
+    } catch (err) {
+      console.error('[Server] Erro ao carregar páginas do ciclo:', err.message);
+    }
+
+    list = list.map(p => {
+      const key = (p.name || '').toLowerCase().trim();
+      return {
+        ...p,
+        cyclePages: pagesMap[key] !== undefined ? pagesMap[key] : 0
+      };
+    });
 
     const unit = urlObj.searchParams.get('unit');
     const status = urlObj.searchParams.get('status');
@@ -164,6 +198,11 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({
       timestamp: data.timestamp,
       count: list.length,
+      cycle: {
+        startDate,
+        endDate,
+        label: bounds.current.label
+      },
       isScanning: isScanningPrinters,
       printers: list
     }));
@@ -187,8 +226,15 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
       return res.end(JSON.stringify({ error: 'Impressora não encontrada' }));
     }
+    const bounds = calculateCycleBounds(new Date());
+    const { pagesMap } = getCyclePagesByPrinter(bounds.current.startDate, bounds.current.endDate);
+    const key = (printer.name || '').toLowerCase().trim();
+
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    return res.end(JSON.stringify(printer));
+    return res.end(JSON.stringify({
+      ...printer,
+      cyclePages: pagesMap[key] !== undefined ? pagesMap[key] : 0
+    }));
   }
 
   // API: POST /api/scan (Disparo manual de varredura)

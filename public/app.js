@@ -4,6 +4,7 @@
 let allPrinters = [];
 let allStats = {};
 let currentHardwareView = 'cards'; // 'cards' | 'table'
+let currentHardwareCycle = null;
 
 // Audit & DataTable State
 let auditCycles = null;
@@ -30,6 +31,7 @@ const kpiOnline = document.getElementById('kpiOnline');
 const kpiLowToner = document.getElementById('kpiLowToner');
 const kpiOffline = document.getElementById('kpiOffline');
 const kpiTotalPages = document.getElementById('kpiTotalPages');
+const kpiTotalPagesSub = document.getElementById('kpiTotalPagesSub');
 const kpiCriticalSub = document.getElementById('kpiCriticalSub');
 
 const criticalBanner = document.getElementById('criticalBanner');
@@ -114,6 +116,7 @@ const modalTypeBadge = document.getElementById('modalTypeBadge');
 const modalIp = document.getElementById('modalIp');
 const modalPort = document.getElementById('modalPort');
 const modalSerial = document.getElementById('modalSerial');
+const modalCycleCount = document.getElementById('modalCycleCount');
 const modalLifeCount = document.getElementById('modalLifeCount');
 const modalServerPath = document.getElementById('modalServerPath');
 const modalSysDescr = document.getElementById('modalSysDescr');
@@ -180,7 +183,11 @@ async function fetchStats() {
     kpiOnline.textContent = allStats.online || 0;
     kpiLowToner.textContent = allStats.lowToner || 0;
     kpiOffline.textContent = allStats.offline || 0;
-    kpiTotalPages.textContent = formatNumber(allStats.totalPages);
+    kpiTotalPages.textContent = formatNumber(allStats.cycleTotalPages !== undefined ? allStats.cycleTotalPages : allStats.totalPages);
+    if (kpiTotalPagesSub && allStats.cycleInfo) {
+      kpiTotalPagesSub.textContent = allStats.cycleInfo.label;
+    }
+    kpiTotalPages.title = `Volume no ciclo atual: ${formatNumber(allStats.cycleTotalPages || 0)} págs | Total vitalício: ${formatNumber(allStats.totalPages || 0)} págs`;
     badgeHardwareCount.textContent = allStats.total || 53;
 
     if (allStats.criticalToner > 0) {
@@ -212,6 +219,7 @@ async function fetchPrinters() {
     const res = await fetch('/api/printers');
     if (!res.ok) throw new Error('Falha ao listar impressoras');
     const data = await res.json();
+    currentHardwareCycle = data.cycle || null;
     allPrinters = data.printers || [];
     renderHardware();
   } catch (err) {
@@ -251,7 +259,7 @@ function getFilteredPrinters() {
   filtered.sort((a, b) => {
     if (sort === 'name_asc') return a.name.localeCompare(b.name);
     if (sort === 'ip_asc') return (a.ip || '').localeCompare(b.ip || '');
-    if (sort === 'pages_desc') return (b.lifeCount || 0) - (a.lifeCount || 0);
+    if (sort === 'pages_desc') return (b.cyclePages !== undefined ? b.cyclePages : 0) - (a.cyclePages !== undefined ? a.cyclePages : 0);
 
     const getMinToner = (p) => {
       const toners = [p.toners.black, p.toners.cyan, p.toners.magenta, p.toners.yellow].filter(v => v !== null);
@@ -344,9 +352,16 @@ function renderCards(list) {
          </a>`
       : `<span class="text-muted">Sem IP</span>`;
 
-    const pagesDisplay = p.lifeCount !== null 
-      ? `<span class="page-counter">${formatNumber(p.lifeCount)} págs</span>` 
-      : `<span class="text-muted">-</span>`;
+    const cyclePagesNum = p.cyclePages !== undefined && p.cyclePages !== null ? p.cyclePages : 0;
+    const lifePagesText = p.lifeCount !== null ? `${formatNumber(p.lifeCount)} págs` : 'N/A';
+    const cycleLabelText = currentHardwareCycle ? currentHardwareCycle.label : 'Ciclo Vigente (21 a 20)';
+    const pagesTooltip = `Volume no ciclo de auditoria (${cycleLabelText}): ${formatNumber(cyclePagesNum)} págs&#10;Total vitalício (SNMP): ${lifePagesText}`;
+
+    const pagesDisplay = `
+      <span class="page-counter" title="${escapeHtml(pagesTooltip)}">
+        ${formatNumber(cyclePagesNum)} págs <span class="counter-period">ciclo</span>
+      </span>
+    `;
 
     return `
       <article class="printer-card ${cardBorderClass}">
@@ -464,7 +479,9 @@ function renderTable(list) {
           ${p.ip ? `<a href="http://${p.ip}" target="_blank" class="ip-link">${p.ip}</a>` : '-'}
         </td>
         <td class="mono">${tonerText}</td>
-        <td class="mono">${p.lifeCount ? formatNumber(p.lifeCount) : '-'}</td>
+        <td class="mono" title="Total vitalício (SNMP): ${p.lifeCount ? formatNumber(p.lifeCount) : 'N/A'} págs">
+          ${formatNumber(p.cyclePages !== undefined && p.cyclePages !== null ? p.cyclePages : 0)} págs
+        </td>
         <td>
           <button class="btn btn-sm btn-secondary" onclick="openDetails('${p.id}')">Detalhes</button>
         </td>
@@ -485,6 +502,11 @@ window.openDetails = function(printerId) {
   modalIp.textContent = p.ip || 'N/A';
   modalPort.textContent = p.portName || 'N/A';
   modalSerial.textContent = p.serialNumber || 'Não identificado';
+  if (modalCycleCount) {
+    const cycleLabelText = currentHardwareCycle ? currentHardwareCycle.label : 'Ciclo Vigente';
+    modalCycleCount.textContent = `${formatNumber(p.cyclePages !== undefined && p.cyclePages !== null ? p.cyclePages : 0)} págs`;
+    modalCycleCount.title = cycleLabelText;
+  }
   modalLifeCount.textContent = p.lifeCount !== null ? `${formatNumber(p.lifeCount)} páginas impressas` : 'N/A';
   modalServerPath.textContent = p.serverPath;
   modalSysDescr.textContent = p.sysDescr || 'Sem dados de firmware';
@@ -665,7 +687,7 @@ btnExportCsv.addEventListener('click', () => {
     showToast('Nenhum dado para exportar.');
     return;
   }
-  const headers = ['Nome da Fila', 'Unidade', 'IP', 'Modelo Driver', 'Status', 'Toner K (%)', 'Toner C (%)', 'Toner M (%)', 'Toner Y (%)', 'Total Páginas', 'Número de Série', 'Caminho Windows'];
+  const headers = ['Nome da Fila', 'Unidade', 'IP', 'Modelo Driver', 'Status', 'Toner K (%)', 'Toner C (%)', 'Toner M (%)', 'Toner Y (%)', 'Páginas no Ciclo', 'Total Vitalício', 'Número de Série', 'Caminho Windows'];
   const rows = list.map(p => [
     `"${(p.name || '').replace(/"/g, '""')}"`,
     `"${(p.unit || '').replace(/"/g, '""')}"`,
@@ -676,6 +698,7 @@ btnExportCsv.addEventListener('click', () => {
     p.toners.cyan !== null ? p.toners.cyan : '',
     p.toners.magenta !== null ? p.toners.magenta : '',
     p.toners.yellow !== null ? p.toners.yellow : '',
+    p.cyclePages !== undefined && p.cyclePages !== null ? p.cyclePages : 0,
     p.lifeCount !== null ? p.lifeCount : '',
     `"${(p.serialNumber || '').replace(/"/g, '""')}"`,
     `"${(p.serverPath || '').replace(/"/g, '""')}"`

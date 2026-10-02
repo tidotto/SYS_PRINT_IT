@@ -510,6 +510,31 @@ function getHistoryFilterOptions(startDate, endDate) {
   return { users, printers, clients };
 }
 
+// Agregação de páginas impressas por impressora em um período de ciclo
+function getCyclePagesByPrinter(startDate, endDate) {
+  if (!startDate || !endDate) {
+    const bounds = calculateCycleBounds();
+    startDate = bounds.current.startDate;
+    endDate = bounds.current.endDate;
+  }
+
+  const rows = db.prepare(`
+    SELECT printer, COALESCE(SUM(total_pages), 0) as cyclePages
+    FROM print_jobs
+    WHERE date >= ? AND date <= ?
+    GROUP BY printer
+  `).all(startDate, endDate);
+
+  const pagesMap = {};
+  for (const r of rows) {
+    if (r.printer) {
+      pagesMap[r.printer.toLowerCase().trim()] = r.cyclePages;
+    }
+  }
+
+  return { startDate, endDate, pagesMap };
+}
+
 module.exports = {
   db,
   syncRecentLogs,
@@ -517,5 +542,7 @@ module.exports = {
   calculateCycleBounds,
   getHistoryStats,
   getHistoryJobs,
-  getHistoryFilterOptions
+  getHistoryFilterOptions,
+  getCyclePagesByPrinter
 };
+

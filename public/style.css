@@ -1149,6 +1149,21 @@ a:focus-visible {
   color: #94a3b8;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: help;
+}
+
+.counter-period {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 0.08rem 0.35rem;
+  border-radius: 4px;
 }
 
 /* ==========================================================================

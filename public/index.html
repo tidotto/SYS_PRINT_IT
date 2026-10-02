@@ -142,13 +142,13 @@
 
       <div class="kpi-card">
         <div class="kpi-header">
-          <span class="kpi-label">Volume Geral Vitalício</span>
+          <span class="kpi-label">Volume no Ciclo Atual</span>
           <span class="kpi-icon icon-purple">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           </span>
         </div>
         <div class="kpi-value value-purple" id="kpiTotalPages">--</div>
-        <div class="kpi-sub">Total de páginas (Life count)</div>
+        <div class="kpi-sub" id="kpiTotalPagesSub">Ciclo Vigente (21 a 20)</div>
       </div>
     </section>
 
@@ -207,7 +207,7 @@
             <option value="name_asc">Nome (A - Z)</option>
             <option value="toner_asc">Menor Nível de Toner</option>
             <option value="toner_desc">Maior Nível de Toner</option>
-            <option value="pages_desc">Mais Páginas Impressas</option>
+            <option value="pages_desc">Mais Páginas no Ciclo</option>
             <option value="ip_asc">Endereço IP</option>
           </select>
         </div>
@@ -247,7 +247,7 @@
             <th>Unidade</th>
             <th>Endereço IP</th>
             <th>Níveis de Toner</th>
-            <th>Total Páginas</th>
+            <th>Páginas (Ciclo)</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -534,8 +534,12 @@
             <span class="meta-value mono" id="modalSerial">N/A</span>
           </div>
           <div class="meta-item">
+            <span class="meta-title">Volume no Ciclo Atual</span>
+            <span class="meta-value highlight" id="modalCycleCount">0 págs</span>
+          </div>
+          <div class="meta-item">
             <span class="meta-title">Volume Total Vitalício</span>
-            <span class="meta-value highlight" id="modalLifeCount">0 págs</span>
+            <span class="meta-value mono" id="modalLifeCount">0 págs</span>
           </div>
           <div class="meta-item full-width">
             <span class="meta-title">Caminho de Rede Windows (Spooler)</span>
