@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "scan": "node -e \"require('./scanner').performScan()\"",
-    "sync": "node -e \"require('./papercutEngine').syncRecentLogs(10)\""
+    "sync": "node -e \"require('./papercutEngine').syncRecentLogs(10)\"",
+    "test:email": "node test-email.js"
   },
   "keywords": [
     "printer",
