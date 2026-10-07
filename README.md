@@ -37,12 +37,21 @@ Sistema corporativo para monitoramento em tempo real do parque de impressoras ma
 
 Em ambiente de produção no servidor **`192.168.1.248`**, a aplicação é executada em `C:\inetpub\wwwroot\SysPrintTI` gerenciada como serviço nativo do Windows (**`SysPrintTI`**) via NSSM.
 
+### Deploy Automatizado em Produção:
+Para atualizar o ambiente de produção após um commit na branch `main`, basta executar na pasta do projeto:
+```powershell
+.\deploy.ps1
+# ou
+.\update.ps1
+```
+O script para o serviço `SysPrintTI`, faz o pull das novidades via Git, instala novas dependências do Node.js e reinicia o serviço Windows automaticamente.
+
 ### Monitorar Logs em Tempo Real (PowerShell):
 ```powershell
 Get-Content "C:\inetpub\wwwroot\SysPrintTI\data\service.log" -Wait -Tail 25
 ```
 
-### Comandos de Manutenção do Serviço:
+### Comandos de Manutenção Manual do Serviço:
 ```powershell
 # Verificar status
 Get-Service SysPrintTI
