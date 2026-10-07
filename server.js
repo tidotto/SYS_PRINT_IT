@@ -12,6 +12,8 @@ const {
   getHistoryFilterOptions,
   getCyclePagesByPrinter
 } = require('./papercutEngine');
+const { processScanResults, checkDailySchedule } = require('./printerAlertManager');
+const { sendDailyReport, verifyConnection } = require('./emailService');
 
 const PORT = config.port;
 const HOST = config.host;
@@ -34,6 +36,13 @@ async function triggerPrinterScan() {
   try {
     const result = await performScan();
     lastScanTime = new Date();
+    if (result && Array.isArray(result.printers)) {
+      try {
+        await processScanResults(result.printers);
+      } catch (alertErr) {
+        console.error('[Server] Erro ao processar alertas de impressoras:', alertErr.message);
+      }
+    }
     return result;
   } catch (err) {
     console.error('[Server] Erro na varredura do parque:', err);
@@ -411,6 +420,60 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // ==========================================
+  // APIS DE E-MAIL & NOTIFICAÇÕES (ZIMBRA)
+  // ==========================================
+
+  // API: GET /api/email/status (Verifica status das configurações de e-mail)
+  if (pathname === '/api/email/status' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify({
+      enabled: config.email.enabled,
+      smtpServer: config.email.smtpServer,
+      smtpPort: config.email.smtpPort,
+      user: config.email.user,
+      notifyTo: config.email.notifyTo,
+      dailyReportTime: config.email.dailyReportTime
+    }));
+  }
+
+  // API: POST /api/email/test (Dispara envio de teste manual)
+  if (pathname === '/api/email/test' && req.method === 'POST') {
+    try {
+      const cached = getCachedData();
+      const printers = cached && cached.printers ? cached.printers : [];
+      const ok = await sendDailyReport(printers, config.email.notifyTo);
+      res.writeHead(ok ? 200 : 500, { 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({
+        success: ok,
+        message: ok ? `E-mail de teste enviado para ${config.email.notifyTo}` : 'Falha ao enviar e-mail'
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+  }
+
+  // API: POST /api/email/daily-report (Dispara o relatório matinal sob demanda)
+  if (pathname === '/api/email/daily-report' && req.method === 'POST') {
+    try {
+      const cached = getCachedData();
+      if (!cached || !cached.printers || cached.printers.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ error: 'Nenhuma impressora no cache para gerar relatório.' }));
+      }
+      const ok = await sendDailyReport(cached.printers);
+      res.writeHead(ok ? 200 : 500, { 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({
+        success: ok,
+        message: ok ? 'Relatório matinal disparado com sucesso!' : 'Falha ao disparar relatório matinal.'
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+  }
+
   // Entrega estática com proteção rígida contra Directory Traversal
   const safePath = path.normalize(pathname).replace(/^[/\\]+/, '');
   const filePath = path.resolve(PUBLIC_DIR, safePath === '' ? 'index.html' : safePath);
@@ -458,6 +521,14 @@ server.listen(PORT, HOST, () => {
     console.log('[Server] Sincronização periódica de logs recentes do PaperCut...');
     triggerPaperCutSync(config.papercut.syncDaysBack);
   }, config.papercut.syncIntervalMin * 60 * 1000);
+
+  // Agendador do Relatório Matinal por E-mail (Verifica a cada 1 minuto se é 08:00)
+  setInterval(async () => {
+    const data = getCachedData();
+    if (data && Array.isArray(data.printers)) {
+      await checkDailySchedule(data.printers);
+    }
+  }, 60 * 1000);
 });
 
 // Encerramento limpo e seguro

@@ -19,6 +19,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "net-snmp": "^3.29.1"
+    "net-snmp": "^3.29.1",
+    "nodemailer": "^10.0.16"
   }
 }

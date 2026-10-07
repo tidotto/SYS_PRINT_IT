@@ -43,6 +43,15 @@ const config = Object.freeze({
   },
   dbPath: process.env.DB_PATH || path.join(__dirname, 'data', 'history.db'),
   cacheFile: process.env.CACHE_FILE || path.join(__dirname, 'data', 'cache.json'),
+  email: {
+    smtpServer: process.env.EMAIL_SMTP_SERVER || 'zimbramail.penso.com.br',
+    smtpPort: parseInt(process.env.EMAIL_SMTP_PORT, 10) || 465,
+    user: process.env.EMAIL_USER || '',
+    password: process.env.EMAIL_PASSWORD || '',
+    notifyTo: process.env.EMAIL_NOTIFY_TO || '',
+    dailyReportTime: process.env.EMAIL_DAILY_REPORT_TIME || '08:00',
+    enabled: process.env.EMAIL_NOTIFICATIONS_ENABLED !== 'false',
+  },
 });
 
 module.exports = config;
