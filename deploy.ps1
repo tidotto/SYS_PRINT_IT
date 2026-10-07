@@ -44,18 +44,19 @@ Write-Host ""
 Write-Host "[2/4] Buscando atualizacoes no repositorio Git..." -ForegroundColor Yellow
 if (Test-Path ".git") {
     try {
-        git fetch origin main 2>$null
+        git fetch origin main
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERRO] Falha no git fetch. Verifique autenticacao ou conexao com o GitHub." -ForegroundColor Red
+            exit 1
+        }
         git reset --hard origin/main
         if ($LASTEXITCODE -ne 0) {
-            git pull origin main
-        }
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERRO] Falha ao atualizar via Git. Verifique a conexao ou conflitos." -ForegroundColor Red
+            Write-Host "[ERRO] Falha ao resetar para origin/main." -ForegroundColor Red
             exit 1
         }
         Write-Host "[OK] Codigo fonte sincronizado com a branch main." -ForegroundColor Green
     } catch {
-        Write-Host "[ERRO] Falha critica no Git." -ForegroundColor Red
+        Write-Host "[ERRO] Erro ao executar Git." -ForegroundColor Red
         exit 1
     }
 } else {
