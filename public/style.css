@@ -286,6 +286,12 @@ a:focus-visible {
   border-left: 1px solid var(--border-subtle);
   font-size: 0.75rem;
   color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.sync-time.sync-time-stale {
+  color: #fbbf24;
+  font-weight: 600;
 }
 
 /* ==========================================================================

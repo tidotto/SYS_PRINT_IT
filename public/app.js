@@ -204,7 +204,7 @@ async function fetchStats() {
     }
 
     if (allStats.lastUpdated) {
-      lastUpdatedText.textContent = formatSyncDateTime(allStats.lastUpdated);
+      updateSyncTimeElement(allStats.lastUpdated);
     }
 
     setScanningState(allStats.isScanning);
@@ -213,18 +213,32 @@ async function fetchStats() {
   }
 }
 
-function formatSyncDateTime(isoStr) {
-  if (!isoStr) return 'Aguardando telemetria';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return 'Aguardando telemetria';
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  if (isToday) {
-    return `Sincronizado hoje às ${time}`;
+function updateSyncTimeElement(isoStr) {
+  if (!lastUpdatedText) return;
+  if (!isoStr) {
+    lastUpdatedText.textContent = 'Aguardando telemetria';
+    return;
   }
-  const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-  return `Sincronizado em ${date} às ${time}`;
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) {
+    lastUpdatedText.textContent = 'Aguardando telemetria';
+    return;
+  }
+
+  const now = new Date();
+  const diffMinutes = Math.floor((now - d) / (60 * 1000));
+  const dateStr = d.toLocaleDateString('pt-BR');
+  const timeStr = d.toLocaleTimeString('pt-BR');
+
+  lastUpdatedText.textContent = `Sincronizado: ${dateStr} às ${timeStr}`;
+
+  if (diffMinutes > 30) {
+    lastUpdatedText.title = `Atenção: última telemetria foi há mais de 30 minutos (${dateStr} às ${timeStr}). Clique em 'Atualizar Hardware' para varredura em tempo real.`;
+    lastUpdatedText.classList.add('sync-time-stale');
+  } else {
+    lastUpdatedText.title = `Telemetria atualizada: ${dateStr} às ${timeStr}`;
+    lastUpdatedText.classList.remove('sync-time-stale');
+  }
 }
 
 async function fetchPrinters() {
@@ -235,7 +249,7 @@ async function fetchPrinters() {
     currentHardwareCycle = data.cycle || null;
     allPrinters = data.printers || [];
     if (data.timestamp) {
-      lastUpdatedText.textContent = formatSyncDateTime(data.timestamp);
+      updateSyncTimeElement(data.timestamp);
     }
     renderHardware();
   } catch (err) {
