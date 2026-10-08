@@ -259,6 +259,7 @@ const server = http.createServer(async (req, res) => {
 
   // API: GET /api/status (Status operacional e dados de infraestrutura)
   if (pathname === '/api/status' && req.method === 'GET') {
+    const cached = getCachedData();
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     return res.end(JSON.stringify({
       serverHost: config.printServer.host,
@@ -268,7 +269,9 @@ const server = http.createServer(async (req, res) => {
       isSyncingPaperCut,
       lastScanTime,
       lastPaperCutSync,
-      hasCache: !!getCachedData()
+      hasCache: !!cached,
+      cacheTimestamp: cached ? cached.timestamp : null,
+      printersCount: cached && cached.printers ? cached.printers.length : 0
     }));
   }
 
@@ -509,6 +512,11 @@ server.listen(PORT, HOST, () => {
     triggerPrinterScan();
   } else {
     console.log(`[Server] Cache de impressoras carregado (${cached.printers.length} impressoras).`);
+    // Dispara varredura inicial de hardware/SNMP em segundo plano após 5s para assegurar telemetria fresca
+    setTimeout(() => {
+      console.log('[Server] Disparando varredura inicial de telemetria após inicialização...');
+      triggerPrinterScan();
+    }, 5000);
   }
 
   // Agendador de varredura de hardware SNMP

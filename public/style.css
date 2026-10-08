@@ -1331,6 +1331,21 @@ a:focus-visible {
   text-align: center;
 }
 
+.card-telemetry-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 0.45rem;
+  margin-bottom: 0.15rem;
+}
+
+.meta-checked {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
 .card-actions {
   display: flex;
   gap: 0.6rem;

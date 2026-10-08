@@ -204,14 +204,27 @@ async function fetchStats() {
     }
 
     if (allStats.lastUpdated) {
-      const dt = new Date(allStats.lastUpdated);
-      lastUpdatedText.textContent = `Sincronizado às ${dt.toLocaleTimeString('pt-BR')}`;
+      lastUpdatedText.textContent = formatSyncDateTime(allStats.lastUpdated);
     }
 
     setScanningState(allStats.isScanning);
   } catch (err) {
     console.error('Erro ao buscar estatísticas de hardware:', err);
   }
+}
+
+function formatSyncDateTime(isoStr) {
+  if (!isoStr) return 'Aguardando telemetria';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return 'Aguardando telemetria';
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (isToday) {
+    return `Sincronizado hoje às ${time}`;
+  }
+  const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return `Sincronizado em ${date} às ${time}`;
 }
 
 async function fetchPrinters() {
@@ -221,6 +234,9 @@ async function fetchPrinters() {
     const data = await res.json();
     currentHardwareCycle = data.cycle || null;
     allPrinters = data.printers || [];
+    if (data.timestamp) {
+      lastUpdatedText.textContent = formatSyncDateTime(data.timestamp);
+    }
     renderHardware();
   } catch (err) {
     console.error('Erro ao buscar lista de impressoras:', err);
@@ -405,6 +421,14 @@ function renderCards(list) {
           </div>
 
           ${tonerHtml}
+
+          ${p.lastChecked ? `
+            <div class="card-telemetry-meta">
+              <span class="meta-checked" title="Última leitura SNMP: ${new Date(p.lastChecked).toLocaleString('pt-BR')}">
+                Leitura: ${new Date(p.lastChecked).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          ` : ''}
         </div>
 
         <div class="card-actions">

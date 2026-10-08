@@ -5,13 +5,14 @@ const path = require('path');
 const config = require('./config');
 
 const CACHE_FILE = config.cacheFile;
+const cacheDir = path.dirname(CACHE_FILE);
+const CATALOG_FILE = path.join(cacheDir, 'printers-catalog.json');
 const SERVER_HOST = config.printServer.host;
 const COMMUNITY = config.snmp.community;
 const SNMP_TIMEOUT_MS = config.snmp.timeoutMs;
 const SNMP_CONCURRENCY = config.snmp.concurrency;
 
 // Garantir existência do diretório do cache
-const cacheDir = path.dirname(CACHE_FILE);
 if (!fs.existsSync(cacheDir)) {
   fs.mkdirSync(cacheDir, { recursive: true });
 }
@@ -43,6 +44,72 @@ function detectUnit(name) {
   return 'Outros';
 }
 
+// Persistência do catálogo base de impressoras do parque
+function savePersistedCatalog(printers) {
+  if (!Array.isArray(printers) || printers.length === 0) return;
+  try {
+    const cleanList = printers.map(p => ({
+      name: p.name,
+      portName: p.portName,
+      ip: p.ip || extractIp(p.portName),
+      driverName: p.driverName || '',
+      shareName: p.shareName || p.name,
+      unit: p.unit || detectUnit(p.name),
+      shared: p.shared !== false,
+      spoolerStatus: p.spoolerStatus || 0
+    })).filter(p => p.name);
+    fs.writeFileSync(CATALOG_FILE, JSON.stringify(cleanList, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[Scanner] Aviso ao persistir catálogo de impressoras:', err.message);
+  }
+}
+
+function getPersistedCatalog() {
+  try {
+    if (fs.existsSync(CATALOG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CATALOG_FILE, 'utf8'));
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch (_) {}
+
+  // Fallback para impressoras do cache existente
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      if (cache && Array.isArray(cache.printers) && cache.printers.length > 0) {
+        return cache.printers.map(p => ({
+          name: p.name,
+          portName: p.portName,
+          ip: p.ip || extractIp(p.portName),
+          driverName: p.driverName || '',
+          shareName: p.shareName || p.name,
+          unit: p.unit || detectUnit(p.name),
+          shared: true,
+          spoolerStatus: p.spoolerCode || 0
+        }));
+      }
+    }
+  } catch (_) {}
+
+  return [];
+}
+
+// Assegura autenticação SMB/RPC se credenciais estiverem configuradas
+function ensureIpcSession() {
+  const user = config.papercut && config.papercut.shareUser;
+  const pass = config.papercut && config.papercut.sharePassword;
+  if (user && pass && SERVER_HOST) {
+    try {
+      require('child_process').execSync(`net use "\\\\${SERVER_HOST}\\IPC$" "${pass}" /user:"${user}"`, {
+        stdio: 'ignore',
+        timeout: 4000
+      });
+    } catch (_) {
+      // Ignora erro se a sessão já estiver ativa ou não for Windows Server local
+    }
+  }
+}
+
 // Consulta das impressoras no servidor Windows via PowerShell seguro
 function getPrintersFromWindowsServer() {
   return new Promise((resolve) => {
@@ -53,12 +120,14 @@ function getPrintersFromWindowsServer() {
       return resolve([]);
     }
 
+    ensureIpcSession();
+
     const psCommand = `Get-Printer -ComputerName '${SERVER_HOST}' | Select-Object Name, PortName, PrinterStatus, DriverName, Shared, ShareName | ConvertTo-Json -Compress`;
     const cmd = `powershell -NoProfile -NonInteractive -Command "${psCommand}"`;
 
-    exec(cmd, { maxBuffer: 10 * 1024 * 1024, timeout: 20000 }, (error, stdout) => {
+    exec(cmd, { maxBuffer: 10 * 1024 * 1024, timeout: 60000 }, (error, stdout) => {
       if (error) {
-        console.error(`[Scanner] Erro ao consultar servidor Windows (${SERVER_HOST}):`, error.message);
+        console.warn(`[Scanner] Aviso ao consultar Spooler do servidor Windows (${SERVER_HOST}): ${error.message}`);
         return resolve([]);
       }
       try {
@@ -76,7 +145,7 @@ function getPrintersFromWindowsServer() {
         }));
         resolve(printers);
       } catch (parseErr) {
-        console.error('[Scanner] Falha no parse do JSON retornado pelo PowerShell:', parseErr.message);
+        console.warn('[Scanner] Falha no parse do JSON retornado pelo PowerShell do Spooler:', parseErr.message);
         resolve([]);
       }
     });
@@ -201,7 +270,7 @@ function queryPrinterSnmp(ip, timeoutMs = SNMP_TIMEOUT_MS) {
           if (descLower.includes('black') || descLower.includes('preto')) {
             category = 'toner';
             color = 'black';
-          } else if (descLower.includes('cyan') || descLower.includes('ciano')) {
+          } else if (descLower.includes('cyan') || descLower.includes('ciano') || descLower.includes('turquesa')) {
             category = 'toner';
             color = 'cyan';
             hasColorToner = true;
@@ -209,7 +278,7 @@ function queryPrinterSnmp(ip, timeoutMs = SNMP_TIMEOUT_MS) {
             category = 'toner';
             color = 'magenta';
             hasColorToner = true;
-          } else if (descLower.includes('yellow') || descLower.includes('amarelo')) {
+          } else if (descLower.includes('yellow') || descLower.includes('amarelo') || descLower.includes('amarela')) {
             category = 'toner';
             color = 'yellow';
             hasColorToner = true;
@@ -219,9 +288,11 @@ function queryPrinterSnmp(ip, timeoutMs = SNMP_TIMEOUT_MS) {
             category = 'waste';
           } else if (descLower.includes('fuser') || descLower.includes('fusor')) {
             category = 'fuser';
+          } else if (descLower.includes('belt') || descLower.includes('esteira') || descLower.includes('correia') || descLower.includes('transfer belt')) {
+            category = 'belt';
           } else if (descLower.includes('roller') || descLower.includes('rolete')) {
             category = 'roller';
-          } else if (descLower.includes('maintenance') || descLower.includes('manutenção')) {
+          } else if (descLower.includes('maintenance') || descLower.includes('manutenção') || descLower.includes('manutencao')) {
             category = 'maintenance';
           }
 
@@ -266,18 +337,23 @@ async function performScan() {
   console.log(`[${new Date().toLocaleTimeString()}] Iniciando varredura do parque de impressão...`);
   const startTime = Date.now();
 
-  const serverPrinters = await getPrintersFromWindowsServer();
-  console.log(`[Scanner] ${serverPrinters.length} impressoras encontradas no servidor ${SERVER_HOST}`);
-
-  if (serverPrinters.length === 0) {
-    if (fs.existsSync(CACHE_FILE)) {
-      console.log('[Scanner] Utilizando cache anterior como fallback.');
-      return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+  let targetPrinters = await getPrintersFromWindowsServer();
+  
+  if (targetPrinters.length > 0) {
+    console.log(`[Scanner] ${targetPrinters.length} impressoras encontradas no servidor ${SERVER_HOST}`);
+    savePersistedCatalog(targetPrinters);
+  } else {
+    // Spooler indisponível ou inacessível no momento: resgata o catálogo persistente
+    targetPrinters = getPersistedCatalog();
+    if (targetPrinters.length > 0) {
+      console.log(`[Scanner] Spooler indisponível. Utilizando catálogo persistente com ${targetPrinters.length} impressoras para varredura SNMP em tempo real.`);
+    } else {
+      console.warn('[Scanner] Nenhuma impressora disponível no Spooler nem no catálogo.');
+      return { timestamp: new Date().toISOString(), printers: [] };
     }
-    return { timestamp: new Date().toISOString(), printers: [] };
   }
 
-  const combined = await mapConcurrent(serverPrinters, SNMP_CONCURRENCY, async (printer) => {
+  const combined = await mapConcurrent(targetPrinters, SNMP_CONCURRENCY, async (printer) => {
     let snmpData = { online: false };
     if (printer.ip) {
       try {
