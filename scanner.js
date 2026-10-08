@@ -44,20 +44,55 @@ function detectUnit(name) {
   return 'Outros';
 }
 
+// Filtra impressoras virtuais / serviços locais de software (PDF, XPS, Fax, etc.)
+function isVirtualPrinter(p) {
+  if (!p) return false;
+  const name = (p.Name || p.name || '').toLowerCase().trim();
+  const driver = (p.DriverName || p.driverName || '').toLowerCase().trim();
+  const port = (p.PortName || p.portName || '').toLowerCase().trim();
+
+  const virtualPatterns = [
+    'cutepdf',
+    'microsoft print to pdf',
+    'microsoft xps',
+    'onenote',
+    'fax',
+    'adobe pdf',
+    'pdfcreator',
+    'pdf creator',
+    'foxit reader pdf',
+    'foxit phantompdf',
+    'bullzip'
+  ];
+
+  if (virtualPatterns.some(pattern => name.includes(pattern) || driver.includes(pattern))) {
+    return true;
+  }
+
+  // Portas virtuais comuns do Windows
+  if (port === 'portprompt:' || port.startsWith('cpw') || port === 'nul:' || port === 'file:') {
+    return true;
+  }
+
+  return false;
+}
+
 // Persistência do catálogo base de impressoras do parque
 function savePersistedCatalog(printers) {
   if (!Array.isArray(printers) || printers.length === 0) return;
   try {
-    const cleanList = printers.map(p => ({
-      name: p.name,
-      portName: p.portName,
-      ip: p.ip || extractIp(p.portName),
-      driverName: p.driverName || '',
-      shareName: p.shareName || p.name,
-      unit: p.unit || detectUnit(p.name),
-      shared: p.shared !== false,
-      spoolerStatus: p.spoolerStatus || 0
-    })).filter(p => p.name);
+    const cleanList = printers
+      .filter(p => !isVirtualPrinter(p))
+      .map(p => ({
+        name: p.name,
+        portName: p.portName,
+        ip: p.ip || extractIp(p.portName),
+        driverName: p.driverName || '',
+        shareName: p.shareName || p.name,
+        unit: p.unit || detectUnit(p.name),
+        shared: p.shared !== false,
+        spoolerStatus: p.spoolerStatus || 0
+      })).filter(p => p.name);
     fs.writeFileSync(CATALOG_FILE, JSON.stringify(cleanList, null, 2), 'utf8');
   } catch (err) {
     console.warn('[Scanner] Aviso ao persistir catálogo de impressoras:', err.message);
@@ -68,7 +103,9 @@ function getPersistedCatalog() {
   try {
     if (fs.existsSync(CATALOG_FILE)) {
       const data = JSON.parse(fs.readFileSync(CATALOG_FILE, 'utf8'));
-      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data) && data.length > 0) {
+        return data.filter(p => !isVirtualPrinter(p));
+      }
     }
   } catch (_) {}
 
@@ -77,16 +114,18 @@ function getPersistedCatalog() {
     if (fs.existsSync(CACHE_FILE)) {
       const cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
       if (cache && Array.isArray(cache.printers) && cache.printers.length > 0) {
-        return cache.printers.map(p => ({
-          name: p.name,
-          portName: p.portName,
-          ip: p.ip || extractIp(p.portName),
-          driverName: p.driverName || '',
-          shareName: p.shareName || p.name,
-          unit: p.unit || detectUnit(p.name),
-          shared: true,
-          spoolerStatus: p.spoolerCode || 0
-        }));
+        return cache.printers
+          .filter(p => !isVirtualPrinter(p))
+          .map(p => ({
+            name: p.name,
+            portName: p.portName,
+            ip: p.ip || extractIp(p.portName),
+            driverName: p.driverName || '',
+            shareName: p.shareName || p.name,
+            unit: p.unit || detectUnit(p.name),
+            shared: true,
+            spoolerStatus: p.spoolerCode || 0
+          }));
       }
     }
   } catch (_) {}
@@ -133,16 +172,18 @@ function getPrintersFromWindowsServer() {
       try {
         const raw = JSON.parse(stdout.trim());
         const list = Array.isArray(raw) ? raw : [raw];
-        const printers = list.map(p => ({
-          name: p.Name,
-          portName: p.PortName,
-          spoolerStatus: p.PrinterStatus, // 0 = Normal, 128 = Offline, 130 = Erro/Pausa
-          driverName: p.DriverName,
-          shared: p.Shared,
-          shareName: p.ShareName,
-          ip: extractIp(p.PortName),
-          unit: detectUnit(p.Name)
-        }));
+        const printers = list
+          .filter(p => !isVirtualPrinter(p))
+          .map(p => ({
+            name: p.Name,
+            portName: p.PortName,
+            spoolerStatus: p.PrinterStatus, // 0 = Normal, 128 = Offline, 130 = Erro/Pausa
+            driverName: p.DriverName,
+            shared: p.Shared,
+            shareName: p.ShareName,
+            ip: extractIp(p.PortName),
+            unit: detectUnit(p.Name)
+          }));
         resolve(printers);
       } catch (parseErr) {
         console.warn('[Scanner] Falha no parse do JSON retornado pelo PowerShell do Spooler:', parseErr.message);
@@ -445,7 +486,12 @@ async function performScan() {
 function getCachedData() {
   if (fs.existsSync(CACHE_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      if (data && Array.isArray(data.printers)) {
+        data.printers = data.printers.filter(p => !isVirtualPrinter(p));
+        data.totalCount = data.printers.length;
+      }
+      return data;
     } catch (_) {}
   }
   return null;
@@ -454,5 +500,6 @@ function getCachedData() {
 module.exports = {
   performScan,
   getCachedData,
+  isVirtualPrinter,
   CACHE_FILE
 };
